@@ -174,6 +174,9 @@ label{font-size:12px;color:var(--mut)}
     <div class="bar"><i id="w-bar" style="width:0"></i></div>
     <p id="w-txt"></p>
   </div>
+  <div class="card" id="h-bdnudge" style="display:none"><h3>🎂 Add your birthday</h3><p>Tell the System your birthday (day and month only) and it will celebrate with you and gift you bonus XP.</p>
+    <button class="btn" style="margin-top:10px" onclick="go('s-prof')">Add birthday</button>
+    <button class="btn ghostbtn" style="margin-top:8px" onclick="S.bdNo=1;save();render()">Not now</button></div>
   <div class="card"><h3>Today's quests</h3><div id="h-quests"></div></div>
   <div class="card"><h3>Today's workout</h3><div id="h-today"></div></div>
 </div>
@@ -203,6 +206,9 @@ label{font-size:12px;color:var(--mut)}
   <h2>Profile & Settings</h2>
   <div class="card"><h3>Winter Arc</h3><p id="pf-w"></p>
     <button class="btn ghostbtn" style="margin-top:10px" onclick="showWinterPrompt(true)">Winter Arc options</button></div>
+  <div class="card"><h3>🎂 Birthday</h3><p id="pf-bd"></p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><select id="bd-m"></select><select id="bd-d"></select></div>
+    <button class="btn ghostbtn" style="margin-top:10px" onclick="saveBirthday()">Save birthday</button></div>
   <div class="card"><h3>Training place</h3><p id="pf-eq"></p>
     <div style="margin-top:10px;display:grid;gap:8px"><button class="btn ghostbtn" onclick="setEquip('home')">Home workout (no equipment)</button><button class="btn ghostbtn" onclick="setEquip('dumb')">Home with dumbbells</button><button class="btn ghostbtn" onclick="setEquip('gym')">Gym workout</button></div></div>
   <div class="card"><h3>About</h3><p>ASCEND gives general fitness information, not medical advice. Talk to a doctor before starting a new exercise program, and stop if something hurts.</p><p style="margin-top:8px"><a href="privacy.html" style="color:var(--acc)">Privacy Policy</a></p></div>
@@ -233,6 +239,16 @@ label{font-size:12px;color:var(--mut)}
   <button class="btn ghostbtn" style="margin-top:12px" onclick="leaveWinter()" id="mw-leave">Leave the Winter Arc</button>
   <button class="btn ghostbtn" style="margin-top:8px" onclick="closeM('m-winter')">Close</button>
   </div>
+</div></div>
+
+<!-- BIRTHDAY -->
+<div class="modal" id="m-bday"><div class="box">
+  <div style="font-size:54px">🎂🎉</div>
+  <h2 id="bd-title">Happy Birthday!</h2>
+  <p id="bd-line" style="margin:10px 0;font-weight:700"></p>
+  <p id="bd-speech" style="margin:8px 0 14px"></p>
+  <p class="badge" style="display:inline-block;margin-bottom:14px">+100 XP birthday gift</p>
+  <button class="btn" onclick="closeM('m-bday')">Thank you, System</button>
 </div></div>
 
 <!-- LEVEL UP -->
@@ -620,7 +636,7 @@ function finishOnb(){
   $('g-kcal').textContent=c.kcal;$('g-p').textContent=c.protein;$('g-c').textContent=c.carbs;$('g-f').textContent=c.fat;$('g-w').textContent=c.water;$('g-adv').textContent=c.adv;
   go('s-goals');
 }
-function afterGoals(){go('s-home');setTimeout(()=>showWinterPrompt(false),400)}
+function afterGoals(){go('s-home');setTimeout(()=>{if(!checkBirthday())showWinterPrompt(false)},400)}
 
 /* ---------- quests ---------- */
 function todayWorkout(){return winterActive()?winterDayWorkout(winterDay()-1):S.prog[dayIdx()]}
@@ -718,6 +734,9 @@ function render(){
   $('st-badges').innerHTML=(S.badges||[]).map(b=>'<span class="badge" style="margin:4px">'+b+'</span>').join('');renderAch();renderNutrition();
   if($('pf-eq'))$('pf-eq').textContent='Current: '+EQS.find(e=>e.v===curEq()).d.replace(/\.$/,'')+'. Pick the one that matches where you train. Your plan updates right away.';
   const ws=winterState();
+  fillBdSelects();if(S.bd&&$('bd-m').dataset.set!==S.bd){$('bd-m').value=S.bd.slice(0,2);$('bd-d').value=S.bd.slice(3);$('bd-m').dataset.set=S.bd}
+  $('pf-bd').textContent=S.bd?'Your birthday is on '+(+S.bd.slice(3))+' '+MONTHS[+S.bd.slice(0,2)-1]+'. The System will celebrate with you.':'Add your birthday (day and month only, optional). The System will greet you and gift 100 XP on that day.';
+  $('h-bdnudge').style.display=(!S.bd&&!S.bdNo)?'block':'none';
   if($('pf-acc'))$('pf-acc').textContent=U?('Signed in as '+(U.email||U.displayName||'your Google account')+'. Progress saves automatically.'):'';
   $('pf-w').textContent=ws?(ws.choice==='join'&&winterActive()?('You are in the Winter Arc: Day '+winterDay()+' of 90, '+MODES[ws.mode!=null?ws.mode:levelOf(S.p)]+' mode. Tap below to change mode or leave.'):(ws.choice==='left'?'You left the Winter Arc. You can rejoin anytime until January.':(ws.choice==='join'?'You finished the Winter Arc. Well done.':'You chose daily quests only. You can join anytime until January.'))):(isWinterSeason()?'Winter Arc is live. Tap below to join, even if you are late.':'Winter Arc runs from October to January.');
 }
@@ -781,6 +800,45 @@ function shareCard(){
   });
 }
 
+
+/* ---------- birthday ---------- */
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const BD_LINES=[
+ 'Today a warrior was born.',
+ 'The System has detected a rare event: a new level begins today.',
+ 'Every legend has an origin day. Today is yours.',
+ 'The shadows bow to you today, Hunter.',
+ 'A year older, a level higher. Ascend.'
+];
+const BD_SPEECH='You were not born to be average. Every rep, every early morning, and every day you showed up when you did not feel like it is how warriors are made. This year, rise higher than the person you were last year. Stronger body, sharper mind, unbreakable will. Keep climbing.';
+function localMD(){const d=new Date();return String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function fillBdSelects(){
+  const m=$('bd-m'),d=$('bd-d');if(!m||m.options.length)return;
+  m.innerHTML=MONTHS.map((n,i)=>'<option value="'+String(i+1).padStart(2,'0')+'">'+n+'</option>').join('');
+  d.innerHTML=Array.from({length:31},(_,i)=>'<option value="'+String(i+1).padStart(2,'0')+'">'+(i+1)+'</option>').join('');
+}
+function saveBirthday(){
+  const v=$('bd-m').value+'-'+$('bd-d').value;
+  const mm=+$('bd-m').value,dd=+$('bd-d').value,max=[31,29,31,30,31,30,31,31,30,31,30,31][mm-1];
+  if(dd>max){toast('SYSTEM: That date does not exist. Pick a valid day.');return}
+  S.bd=v;save();render();
+  toast('SYSTEM: Birthday saved.');
+  checkBirthday();
+}
+function checkBirthday(){
+  if(!S||!S.bd||S.bd!==localMD())return false;
+  const y=String(new Date().getFullYear());
+  if(S.bdSeen===y)return false;
+  S.bdSeen=y;S.xp+=100;
+  while(S.xp>=xpNeed(S.lvl)){S.xp-=xpNeed(S.lvl);S.lvl++}
+  save();render();
+  $('bd-title').textContent='Happy Birthday, '+S.p.name+'!';
+  $('bd-line').textContent=BD_LINES[Math.floor(Math.random()*BD_LINES.length)];
+  $('bd-speech').textContent=BD_SPEECH;
+  $('m-bday').classList.add('on');
+  return true;
+}
+
 /* ---------- snow ---------- */
 (function(){const s=$('snow');for(let i=0;i<34;i++){const e=document.createElement('i');e.style.left=Math.random()*100+'%';const z=2+Math.random()*5;e.style.width=z+'px';e.style.height=z+'px';e.style.animationDuration=(9+Math.random()*10)+'s';e.style.animationDelay=(-Math.random()*14)+'s';s.appendChild(e)}})();
 
@@ -807,7 +865,7 @@ async function onSignedIn(u){
     setMsg('Could not load your data. Check your internet and tap to retry.',true);go('s-splash');return;
   }
   setMsg('');
-  if(S&&S.p){checkStreak();refreshProgram();applyTheme();go('s-home');setTimeout(()=>showWinterPrompt(false),500)}
+  if(S&&S.p){checkStreak();refreshProgram();applyTheme();go('s-home');setTimeout(()=>{if(!checkBirthday())showWinterPrompt(false)},500)}
   else{applyTheme();go('s-onb')}
 }
 function onSignedOut(){U=null;$('b-google').disabled=false;setMsg('');go('s-splash')}
