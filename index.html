@@ -122,8 +122,10 @@ label{font-size:12px;color:var(--mut)}
     <label>Hunter name</label>
     <div style="display:flex;gap:8px;align-items:center"><input id="o-name" placeholder="Enter your hunter name" maxlength="20" style="margin:6px 0 10px"><button type="button" id="o-dice" onclick="randName()" title="Generate a name" style="flex:none;width:50px;height:46px;margin-bottom:4px;border-radius:12px;border:1px solid var(--acc);background:var(--card);color:var(--txt);font-size:22px;cursor:pointer">🎲</button></div>
     <p id="o-err" style="color:#ff6b6b;display:none;margin:-4px 0 8px">Fill in your Hunter name first, or tap the dice to get one.</p>
+    <label>Date of birth</label>
+    <div style="display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:8px;margin:6px 0 4px"><select id="o-dd" onchange="dobAge()"></select><select id="o-dm" onchange="dobAge()"></select><select id="o-dy" onchange="dobAge()"></select></div>
+    <p id="o-dage" style="margin:0 0 10px;font-size:13px">Pick your birthday and the System works out your age. You will get a birthday greeting from us.</p>
     <div class="grid">
-      <div><label>Age</label><input id="o-age" type="number" value="20"></div>
       <div><label>Gender</label><select id="o-gen"><option value="m">Male</option><option value="f">Female</option></select></div>
       <div><label>Height (cm)</label><input id="o-h" type="number" value="173"></div>
       <div><label>Weight (kg)</label><input id="o-w" type="number" value="65"></div>
@@ -207,8 +209,8 @@ label{font-size:12px;color:var(--mut)}
   <div class="card"><h3>Winter Arc</h3><p id="pf-w"></p>
     <button class="btn ghostbtn" style="margin-top:10px" onclick="showWinterPrompt(true)">Winter Arc options</button></div>
   <div class="card"><h3>🎂 Birthday</h3><p id="pf-bd"></p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><select id="bd-m"></select><select id="bd-d"></select></div>
-    <button class="btn ghostbtn" style="margin-top:10px" onclick="saveBirthday()">Save birthday</button></div>
+    <div id="bd-box" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><select id="bd-m"></select><select id="bd-d"></select></div>
+    <button id="bd-save" class="btn ghostbtn" style="margin-top:10px" onclick="saveBirthday()">Save birthday</button></div>
   <div class="card"><h3>Training place</h3><p id="pf-eq"></p>
     <div style="margin-top:10px;display:grid;gap:8px"><button class="btn ghostbtn" onclick="setEquip('home')">Home workout (no equipment)</button><button class="btn ghostbtn" onclick="setEquip('dumb')">Home with dumbbells</button><button class="btn ghostbtn" onclick="setEquip('gym')">Gym workout</button></div></div>
   <div class="card"><h3>About</h3><p>ASCEND gives general fitness information, not medical advice. Talk to a doctor before starting a new exercise program, and stop if something hurts.</p><p style="margin-top:8px"><a href="privacy.html" style="color:var(--acc)">Privacy Policy</a></p></div>
@@ -333,7 +335,7 @@ function checkStreak(){
 function shadowsUnlocked(){return SHADOWS.filter(s=>(S.bestStreak||0)>=s.d)}
 
 /* ---------- navigation ---------- */
-function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');
+function go(id){if(id==='s-onb')initDob();document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));$(id).classList.add('on');
   const main=['s-home','s-prog','s-stats','s-prof'].includes(id);
   $('tabs').style.display=main?'flex':'none';
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===id));
@@ -624,14 +626,16 @@ function finishOnb(){
     $('o-err').style.display='block';$('o-name').style.borderColor='#ff6b6b';$('o-name').focus();
     toast('SYSTEM: Fill in your Hunter name first.');return;
   }
-  const ag=+$('o-age').value,ht=+$('o-h').value,wt=+$('o-w').value;
-  if(!(ag>=13&&ag<=90)){toast('SYSTEM: ASCEND is for ages 13 and over. Enter an age between 13 and 90.');$('o-age').focus();return}
+  const dob=readDob(),ag=dob?ageFrom(dob):0,ht=+$('o-h').value,wt=+$('o-w').value;
+  if(!dob){toast('SYSTEM: Pick your full date of birth (day, month and year).');return}
+  if(ag<13){toast('SYSTEM: ASCEND is for ages 13 and over.');return}
+  if(ag>90){toast('SYSTEM: Check your year of birth.');return}
   if(!(ht>=120&&ht<=230)){toast('SYSTEM: Enter a valid height between 120 and 230 cm.');$('o-h').focus();return}
   if(!(wt>=30&&wt<=250)){toast('SYSTEM: Enter a valid weight between 30 and 250 kg.');$('o-w').focus();return}
   const goals=chipsAll('c-goal');
-  const p={name:nm,goals:goals,age:+$('o-age').value||20,gen:$('o-gen').value,h:+$('o-h').value||170,w:+$('o-w').value||65,goal:goals[0],exp:chip('c-exp'),days:+chip('c-days'),equip:chip('c-eq'),start:today()};
+  const p={name:nm,goals:goals,age:ag,gen:$('o-gen').value,h:+$('o-h').value||170,w:+$('o-w').value||65,goal:goals[0],exp:chip('c-exp'),days:+chip('c-days'),equip:chip('c-eq'),start:today()};
   const c=calc(p);p.bmi=c.bmi;
-  S={p,c,prog:buildProgram(p,stageIdx(p),0),stage:stageIdx(p),wk:0,pv:PROG_VER,xp:0,lvl:1,stats:{STR:10,AGI:10,VIT:10,INT:10,SNS:10},done:{},streak:0,best:0,bestStreak:0,freezes:1,last:'',weights:[{d:today(),w:p.w}],badges:[],winter:{}};
+  S={p,c,prog:buildProgram(p,stageIdx(p),0),stage:stageIdx(p),wk:0,pv:PROG_VER,xp:0,lvl:1,stats:{STR:10,AGI:10,VIT:10,INT:10,SNS:10},done:{},streak:0,best:0,bestStreak:0,freezes:1,last:'',weights:[{d:today(),w:p.w}],badges:[],winter:{},dob:dob,bd:dob.slice(5)};
   save();
   $('g-kcal').textContent=c.kcal;$('g-p').textContent=c.protein;$('g-c').textContent=c.carbs;$('g-f').textContent=c.fat;$('g-w').textContent=c.water;$('g-adv').textContent=c.adv;
   go('s-goals');
@@ -734,7 +738,8 @@ function render(){
   $('st-badges').innerHTML=(S.badges||[]).map(b=>'<span class="badge" style="margin:4px">'+b+'</span>').join('');renderAch();renderNutrition();
   if($('pf-eq'))$('pf-eq').textContent='Current: '+EQS.find(e=>e.v===curEq()).d.replace(/\.$/,'')+'. Pick the one that matches where you train. Your plan updates right away.';
   const ws=winterState();
-  fillBdSelects();if(S.bd&&$('bd-m').dataset.set!==S.bd){$('bd-m').value=S.bd.slice(0,2);$('bd-d').value=S.bd.slice(3);$('bd-m').dataset.set=S.bd}
+  if(S.dob){S.p.age=ageFrom(S.dob);S.bd=S.dob.slice(5)}
+  fillBdSelects();$('bd-box').style.display=S.dob?'none':'grid';$('bd-save').style.display=S.dob?'none':'block';if(S.bd&&$('bd-m').dataset.set!==S.bd){$('bd-m').value=S.bd.slice(0,2);$('bd-d').value=S.bd.slice(3);$('bd-m').dataset.set=S.bd}
   $('pf-bd').textContent=S.bd?'Your birthday is on '+(+S.bd.slice(3))+' '+MONTHS[+S.bd.slice(0,2)-1]+'. The System will celebrate with you.':'Add your birthday (day and month only, optional). The System will greet you and gift 100 XP on that day.';
   $('h-bdnudge').style.display=(!S.bd&&!S.bdNo)?'block':'none';
   if($('pf-acc'))$('pf-acc').textContent=U?('Signed in as '+(U.email||U.displayName||'your Google account')+'. Progress saves automatically.'):'';
@@ -801,6 +806,20 @@ function shareCard(){
 }
 
 
+/* ---------- date of birth ---------- */
+function ageFrom(dob){const q=dob.split('-').map(Number),n=new Date();let a=n.getFullYear()-q[0];if(n.getMonth()+1<q[1]||(n.getMonth()+1===q[1]&&n.getDate()<q[2]))a--;return a}
+function initDob(){
+  const dd=$('o-dd'),dm=$('o-dm'),dy=$('o-dy');if(!dd||dd.options.length)return;
+  dd.innerHTML='<option value="">Day</option>'+Array.from({length:31},(_,i)=>'<option value="'+String(i+1).padStart(2,'0')+'">'+(i+1)+'</option>').join('');
+  dm.innerHTML='<option value="">Month</option>'+MONTHS.map((n,i)=>'<option value="'+String(i+1).padStart(2,'0')+'">'+n.slice(0,3)+'</option>').join('');
+  const y=new Date().getFullYear();let h='<option value="">Year</option>';for(let v=y;v>=y-90;v--)h+='<option value="'+v+'">'+v+'</option>';dy.innerHTML=h;
+}
+function readDob(){
+  const d=$('o-dd').value,m=$('o-dm').value,y=$('o-dy').value;if(!d||!m||!y)return null;
+  const dt=new Date(+y,+m-1,+d);if(dt.getMonth()!==+m-1||dt.getDate()!==+d)return null;
+  return y+'-'+m+'-'+d;
+}
+function dobAge(){const v=readDob(),e=$('o-dage');if(!v){e.textContent='Pick your birthday and the System works out your age. You will get a birthday greeting from us.';return}const a=ageFrom(v);e.textContent=a<13?'ASCEND is for ages 13 and over.':'Your age: '+a+' years.'}
 /* ---------- birthday ---------- */
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const BD_LINES=[
